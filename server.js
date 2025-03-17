@@ -1,7 +1,6 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const THREE = require("three");
 
 const app = express();
 const server = http.createServer(app);
@@ -11,7 +10,7 @@ const rooms = {};
 io.on("connection", (socket) => {
   socket.on("joinRoom", ({ userId, name, room }) => {
     socket.join(room);
-    if (!rooms[room]) rooms[room] = { players: {}, bullets: [] };
+    if (!rooms[room]) rooms[room] = { players: {} };
     rooms[room].players[userId] = { x: 0, y: 5, z: 0, rx: 0, ry: 0, rz: 0, name };
     io.to(room).emit("updatePlayers", rooms[room].players);
   });
@@ -32,26 +31,12 @@ io.on("connection", (socket) => {
   socket.on("shoot", ({ room, shooterId, position, direction }) => {
     if (rooms[room] && rooms[room].players[shooterId]) {
       const bullet = { shooterId, position: [...position], direction: [...direction], id: Date.now() + Math.random() };
-      rooms[room].bullets.push(bullet);
       io.to(room).emit("updateBullets", [bullet]);
     }
   });
 
   socket.on("bulletExpired", ({ room, shooterId, position }) => {
-    if (!rooms[room]) return;
-    rooms[room].bullets = rooms[room].bullets.filter((b) => b.shooterId !== shooterId || b.position.toString() !== position.toString());
-    io.to(room).emit("updateBullets", rooms[room].bullets);
-
-    for (const targetId in rooms[room].players) {
-      if (targetId === shooterId) continue;
-      const target = rooms[room].players[targetId];
-      const bulletPos = new THREE.Vector3(...position);
-      const targetPos = new THREE.Vector3(target.x, target.y, target.z);
-      if (bulletPos.distanceTo(targetPos) < 2) {
-        io.to(room).emit("hit", { targetId });
-        break;
-      }
-    }
+    // Optional: Handle collisions server-side if needed
   });
 
   socket.on("disconnect", () => {

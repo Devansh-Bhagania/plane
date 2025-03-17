@@ -5,29 +5,14 @@ const THREE = require("three");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-});
-
+const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 const rooms = {};
 
 io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
   socket.on("joinRoom", ({ userId, name, room }) => {
     socket.join(room);
     if (!rooms[room]) rooms[room] = { players: {}, bullets: [] };
-    rooms[room].players[userId] = {
-      x: Math.random() * 20 - 10,
-      y: 5,
-      z: Math.random() * 20 - 10,
-      rx: 0,
-      ry: 0,
-      rz: 0,
-      name,
-      health: 100,
-      score: 0,
-    };
+    rooms[room].players[userId] = { x: 0, y: 5, z: 0, rx: 0, ry: 0, rz: 0, name };
     io.to(room).emit("updatePlayers", rooms[room].players);
   });
 
@@ -45,10 +30,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("shoot", ({ room, shooterId, position, direction }) => {
-    if (!rooms[room] || !rooms[room].players[shooterId]) return;
-    const bullet = { shooterId, position: [...position], direction: [...direction], id: Date.now() + Math.random() };
-    rooms[room].bullets.push(bullet);
-    io.to(room).emit("updateBullets", [bullet]); // Only send new bullet
+    if (rooms[room] && rooms[room].players[shooterId]) {
+      const bullet = { shooterId, position: [...position], direction: [...direction], id: Date.now() + Math.random() };
+      rooms[room].bullets.push(bullet);
+      io.to(room).emit("updateBullets", [bullet]);
+    }
   });
 
   socket.on("bulletExpired", ({ room, shooterId, position }) => {
@@ -62,16 +48,7 @@ io.on("connection", (socket) => {
       const bulletPos = new THREE.Vector3(...position);
       const targetPos = new THREE.Vector3(target.x, target.y, target.z);
       if (bulletPos.distanceTo(targetPos) < 2) {
-        target.health = Math.max(target.health - 20, 0);
-        if (target.health <= 0) {
-          target.x = Math.random() * 20 - 10;
-          target.y = 5;
-          target.z = Math.random() * 20 - 10;
-          target.health = 100;
-          rooms[room].players[shooterId].score += 50;
-        }
-        io.to(room).emit("hit", { targetId, damage: 20 });
-        io.to(room).emit("updatePlayers", rooms[room].players);
+        io.to(room).emit("hit", { targetId });
         break;
       }
     }
@@ -89,5 +66,4 @@ io.on("connection", (socket) => {
   });
 });
 
-app.get("/", (req, res) => res.send("Plane Combat Server is running!"));
-server.listen(process.env.PORT || 5000, () => console.log(`Server running on port ${process.env.PORT || 5000}`));
+server.listen(process.env.PORT || 5000, () => console.log(`Server on port ${process.env.PORT || 5000}`));
